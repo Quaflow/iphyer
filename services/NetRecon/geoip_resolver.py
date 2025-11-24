@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from domain_resolver import _fetch_peeringdb_website_html, _normalize_domain
+from domain_resolver import resolve_domain_for_ip
+
+
 from config import *
 import geoip2.database
 import geoip2.errors
@@ -44,10 +46,11 @@ def _lookup_connection(ip: str) -> dict | None:
 
 	asn_number = asn.autonomous_system_number
 
-	domain = _lookup_domain(ip, asn_number)
+	# Use shared domain resolver module
+	domain = resolve_domain_for_ip(ip, asn_number)
 
 	connection: dict = {
-		"asn": asn.autonomous_system_number,
+		"asn": asn_number,
 		"org": asn.autonomous_system_organization,
 		"isp": asn.autonomous_system_organization,
 		"route": str(asn.network),

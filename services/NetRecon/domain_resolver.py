@@ -1,8 +1,23 @@
+import ipaddress
 import socket
+from functools import lru_cache
 from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
+
+# Domain resolution configuration
+DOMAIN_RESOLUTION_ENABLED = True
+REVERSE_DNS_ENABLED = True
+PEERINGDB_SCRAPE_ENABLED = True
+
+# Timeouts
+DEFAULT_DNS_TIMEOUT = 2.0  # seconds
+DEFAULT_HTTP_TIMEOUT = 5.0  # seconds
+
+# Set a global default timeout for socket operations
+socket.setdefaulttimeout(DEFAULT_DNS_TIMEOUT)
+
 
 def _normalize_domain(value: str | None) -> str | None:
 	"""Normalize a URL or hostname to a bare domain (e.g. https://www.ovhcloud.com -> ovhcloud.com)."""
@@ -28,11 +43,35 @@ def _normalize_domain(value: str | None) -> str | None:
 
 	return host.lower()
 
-def _fetch_peeringdb_website_html(asn: int) -> str | None:
-	"""Fetch website URL from PeeringDB HTML page for a given ASN."""
+
+@lru_cache(maxsize=4096)
+def _reverse_dns_cached(ip: str) -> str | None:
+	"""Cached reverse DNS resolver for IP -> domain."""
+	try:
+		hostname, aliases, _ = socket.gethostbyaddr(ip)
+	except (socket.herror, socket.gaierror):
+		# No PTR record or DNS failure
+		return None
+	except Exception as e:
+		print(f"[!] Reverse DNS error for IP {ip}: {e}")
+		return None
+
+	if not hostname:
+		return None
+
+	parts = hostname.split(".")
+	if len(parts) >= 2:
+		return ".".join(parts[-2:]).lower()
+
+	return hostname.lower()
+
+
+@lru_cache(maxsize=2048)
+def _fetch_peeringdb_website_html_cached(asn: int) -> str | None:
+	"""Cached PeeringDB website extraction for an ASN using HTML scraping."""
 	url = f"https://www.peeringdb.com/asn/{asn}"
 	try:
-		resp = requests.get(url, timeout=5)
+		resp = requests.get(url, timeout=DEFAULT_HTTP_TIMEOUT)
 	except Exception as e:
 		print(f"[!] PeeringDB request failed for ASN {asn}: {e}")
 		return None
@@ -47,7 +86,7 @@ def _fetch_peeringdb_website_html(asn: int) -> str | None:
 		print(f"[!] Failed to parse PeeringDB HTML for ASN {asn}: {e}")
 		return None
 
-	# This is based on current PeeringDB markup and may break if the site changes.
+	# This selector is based on current PeeringDB markup and may break if the site changes.
 	div = soup.find(
 		"div",
 		{
@@ -66,3 +105,40 @@ def _fetch_peeringdb_website_html(asn: int) -> str | None:
 		href = div.get_text(strip=True)
 
 	return href or None
+
+
+def resolve_domain_for_ip(ip: str, asn_number: int | None = None) -> str | None:
+	"""Resolve a best-effort domain for an IP using multiple strategies.
+
+	Priority:
+		1. Skip private/loopback/reserved IPs entirely
+		2. Reverse DNS (PTR) with caching
+		3. PeeringDB website for ASN with caching
+	"""
+	if not DOMAIN_RESOLUTION_ENABLED:
+		return None
+
+	# Skip internal/non-routable IPs to avoid useless lookups
+	try:
+		ip_obj = ipaddress.ip_address(ip)
+		if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local:
+			return None
+	except ValueError:
+		# If IP is somehow invalid, bail out
+		return None
+
+	# 1) Reverse DNS
+	if REVERSE_DNS_ENABLED:
+		rdns_domain = _reverse_dns_cached(ip)
+		if rdns_domain:
+			return rdns_domain
+
+	# 2) PeeringDB HTML website scrape
+	if PEERINGDB_SCRAPE_ENABLED and asn_number is not None:
+		website_url = _fetch_peeringdb_website_html_cached(asn_number)
+		if website_url:
+			normalized = _normalize_domain(website_url)
+			if normalized:
+				return normalized
+
+	return None
