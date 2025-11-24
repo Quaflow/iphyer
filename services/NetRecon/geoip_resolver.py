@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from domain_resolver import resolve_domain_for_ip
 
 
-from config import *
+from config import settings
 import geoip2.database
 import geoip2.errors
 
@@ -16,9 +16,9 @@ import geoip2.errors
 BASE_DIR = Path(__file__).resolve().parent
 
 # Database paths
-GEOIP_CITY_DB = BASE_DIR / "data" / "GeoLite2-City.mmdb"
-GEOIP_ASN_DB = BASE_DIR / "data" / "GeoLite2-ASN.mmdb"
-COUNTRY_META_FILE = BASE_DIR / "data" / "country_meta.json"
+GEOIP_CITY_DB = settings.geoip_city_db
+GEOIP_ASN_DB = settings.geoip_asn_db
+COUNTRY_META_FILE = settings.country_meta_path
 
 # Load databases lazily once
 city_reader = geoip2.database.Reader(str(GEOIP_CITY_DB))

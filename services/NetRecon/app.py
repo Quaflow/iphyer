@@ -1,8 +1,9 @@
 import os
 from flask import Flask, jsonify, request
 from geoip_resolver import lookup_ip
-from config import *
+
 from datetime import datetime, timedelta
+from config import settings
 
 app = Flask(__name__)
 
@@ -35,8 +36,8 @@ def ip_lookup(ip):
 
 
 if __name__ == "__main__":
-	port = int(os.getenv("PORT", 5000))
+	port = settings.port
 	# Debug should only be enabled in development
 	if DEBUG_MODE:
 		app.debug = True
-	app.run(host="0.0.0.0", port=port)
+	app.run(host="0.0.0.0", port=port, debug=settings.flask_debug)

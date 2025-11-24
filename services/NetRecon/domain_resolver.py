@@ -3,17 +3,23 @@ import socket
 from functools import lru_cache
 from urllib.parse import urlparse
 
+from config import settings
+
 import requests
 from bs4 import BeautifulSoup
 
 # Domain resolution configuration
-DOMAIN_RESOLUTION_ENABLED = True
-REVERSE_DNS_ENABLED = True
-PEERINGDB_SCRAPE_ENABLED = True
+DOMAIN_RESOLUTION_ENABLED = settings.domain_resolution_enabled
+REVERSE_DNS_ENABLED = settings.reverse_dns_enabled
+PEERINGDB_SCRAPE_ENABLED = settings.peeringdb_scrape_enabled
 
 # Timeouts
-DEFAULT_DNS_TIMEOUT = 2.0  # seconds
-DEFAULT_HTTP_TIMEOUT = 5.0  # seconds
+DEFAULT_DNS_TIMEOUT = settings.dns_timeout_seconds  # seconds
+DEFAULT_HTTP_TIMEOUT = settings.http_timeout_seconds  # seconds
+
+# Cache sizes from settings
+REVERSE_DNS_CACHE_SIZE = settings.reverse_dns_cache_size
+PEERINGDB_CACHE_SIZE = settings.peeringdb_cache_size
 
 # Set a global default timeout for socket operations
 socket.setdefaulttimeout(DEFAULT_DNS_TIMEOUT)
@@ -44,7 +50,7 @@ def _normalize_domain(value: str | None) -> str | None:
 	return host.lower()
 
 
-@lru_cache(maxsize=4096)
+@lru_cache(maxsize=REVERSE_DNS_CACHE_SIZE)
 def _reverse_dns_cached(ip: str) -> str | None:
 	"""Cached reverse DNS resolver for IP -> domain."""
 	try:
@@ -66,7 +72,7 @@ def _reverse_dns_cached(ip: str) -> str | None:
 	return hostname.lower()
 
 
-@lru_cache(maxsize=2048)
+@lru_cache(maxsize=PEERINGDB_CACHE_SIZE)
 def _fetch_peeringdb_website_html_cached(asn: int) -> str | None:
 	"""Cached PeeringDB website extraction for an ASN using HTML scraping."""
 	url = f"https://www.peeringdb.com/asn/{asn}"
