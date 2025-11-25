@@ -35,6 +35,9 @@ class Settings:
 	port: int = _env_int("NETRECON_PORT", 5000)
 	flask_debug: bool = _env_bool("NETRECON_DEBUG", False)
 
+	# Logging
+	log_level: str = os.getenv("NETRECON_LOG_LEVEL", "INFO")
+
 	# GeoIP database paths
 	geoip_city_db: Path = Path(
 		os.getenv(
@@ -79,6 +82,18 @@ class Settings:
 	peeringdb_cache_size: int = _env_int(
 		"NETRECON_PEERINGDB_CACHE_SIZE", 2048
 	)
+
+	# Redis configuration
+	redis_url: str = os.getenv("NETRECON_REDIS_URL", "redis://localhost:6379/0")
+
+	# Rate limiting
+	rate_limit_enabled: bool = _env_bool("NETRECON_RATE_LIMIT_ENABLED", True)
+	rate_limit_requests_per_window: int = _env_int(
+		"NETRECON_RATE_LIMIT_REQUESTS", 10
+	)  # default: 60 requests
+	rate_limit_window_seconds: int = _env_int(
+		"NETRECON_RATE_LIMIT_WINDOW_SECONDS", 60
+	)  # default: per 60 seconds
 
 
 settings = Settings()

@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7
+    container_name: netrecon_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  netrecon:
+    build: .
+    container_name: netrecon_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      # Flask / app config
+      NETRECON_PORT: "5000"
+      NETRECON_DEBUG: "0"
+      NETRECON_LOG_LEVEL: "INFO"
+
+      # GeoIP paths (inside the container)
+      NETRECON_GEOIP_CITY_DB: "/app/data/GeoLite2-City.mmdb"
+      NETRECON_GEOIP_ASN_DB: "/app/data/GeoLite2-ASN.mmdb"
+      NETRECON_COUNTRY_META_PATH: "/app/data/country_meta.json"
+
+      # Redis + rate limiting
+      NETRECON_REDIS_URL: "redis://redis:6379/0"
+      NETRECON_RATE_LIMIT_ENABLED: "1"
+      NETRECON_RATE_LIMIT_REQUESTS: "60"
+      NETRECON_RATE_LIMIT_WINDOW_SECONDS: "60"
+    depends_on:
+      - redis
+    volumes:
+      - ./data:/app/data:ro
