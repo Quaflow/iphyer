@@ -12,6 +12,7 @@ import logging
 import time
 from prometheus_exporter import format_prometheus_metrics
 
+from rate_limiter import check_rate_limit
 
 # Configure logging before creating the app
 setup_logging()
@@ -22,8 +23,27 @@ app = Flask(__name__)
 
 @app.before_request
 def before_request():
-	"""Store request start time for latency measurement."""
+	"""Store request start time and enforce rate limiting."""
 	g.request_start_time = time.perf_counter()
+
+	# Extract client IP (respecting X-Forwarded-For if present)
+	client_ip = request.headers.get("X-Forwarded-For", request.remote_addr) or "unknown"
+
+	rl_result = check_rate_limit(client_ip)
+
+	if not rl_result.allowed:
+		# Build a 429 Too Many Requests response
+		payload = {
+			"error": "rate_limited",
+			"message": "Too many requests. Please slow down.",
+			"retry_after_seconds": rl_result.retry_after,
+		}
+		resp = jsonify(payload)
+		resp.status_code = 429
+		if rl_result.retry_after is not None:
+			resp.headers["Retry-After"] = str(rl_result.retry_after)
+		return resp
+
 
 @app.after_request
 def after_request(response):
